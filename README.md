@@ -15,10 +15,11 @@ Transform your phone into a wireless webcam for OBS and other applications. Stre
 
 ## Requirements
 
-- Python 3.x
-- Node.js
+- Python 3.8+ with pip
+- Node.js 18+ with npm
 - OBS Virtual Camera installed
 - Phone and PC on same network
+- OpenSSL (for SSL certificate generation)
 
 ## Quick Installation
 
@@ -211,30 +212,110 @@ Note: Complete screen lock prevention has limitations:
 - Check WiFi signal strength
 - Close other bandwidth-heavy applications
 
-## Advanced Configuration
+## Configuration
 
-### Change resolution
-Edit `phone_obs_rotation.py`:
-```python
-WIDTH = 1920  # Change from 1280
-HEIGHT = 1080  # Change from 720
+### Environment Variables
+
+Copy `.env.example` to `.env` and customize:
+
+```bash
+# Server Configuration
+PORT=8443
+HOST=0.0.0.0
+SERVER_IP=192.168.0.225
+
+# SSL Configuration
+SSL_KEY_PATH=server.key
+SSL_CERT_PATH=server.cert
+
+# CORS Configuration (comma-separated)
+ALLOWED_ORIGINS=http://localhost:3000,https://localhost:3000
+
+# Camera Configuration
+CAMERA_WIDTH=1280
+CAMERA_HEIGHT=720
+CAMERA_FPS=30
+
+# Development
+NODE_ENV=development
 ```
 
-### Change port
-Edit `webcam_server_https.js`:
-```javascript
-const PORT = 8443;  // Change to desired port
+### Advanced Configuration
+
+#### Development Tools
+
+```bash
+# Install development dependencies
+npm install
+
+# Run with auto-reload
+npm run dev
+
+# Run tests
+npm test
+npm run test:python
+
+# Code formatting
+npm run format
+black *.py
+
+# Linting
+npm run lint
+flake8 *.py
 ```
 
-### Custom SSL certificate
-Replace `server.key` and `server.cert` with your own certificates.
+#### Custom SSL Certificates
+
+For production use, replace self-signed certificates:
+
+```bash
+# Generate production certificates (replace with real domain)
+openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.cert -days 365 -nodes -subj "/CN=yourdomain.com"
+```
+
+#### Performance Tuning
+
+- **Higher resolution**: Set `CAMERA_WIDTH=1920` and `CAMERA_HEIGHT=1080`
+- **Lower latency**: Reduce `CAMERA_FPS=15` for slower networks
+- **Connection limits**: Modify WebSocket connection limits in code
 
 ## Security Notes
 
-- Uses self-signed SSL certificate by default
-- Secure WebSocket (WSS) for encrypted transmission
-- No data stored or transmitted outside local network
-- Camera access only when explicitly granted
+### Built-in Security Features
+
+- ✅ **HTTPS/WSS encryption** for all communications
+- ✅ **Configurable CORS policies** to restrict access origins
+- ✅ **SSL certificate validation** (configurable)
+- ✅ **Connection limits** and message size limits
+- ✅ **Input validation** for all data processing
+- ✅ **Security headers** (X-Frame-Options, Content-Type-Options)
+- ✅ **Environment-based configuration** (no hardcoded secrets)
+
+### Production Security Checklist
+
+- [ ] Use valid SSL certificates (not self-signed)
+- [ ] Configure specific CORS origins (avoid wildcards)
+- [ ] Enable SSL certificate validation
+- [ ] Run on trusted networks with firewall protection
+- [ ] Regularly update dependencies (`npm audit`, `pip-audit`)
+- [ ] Monitor access logs for suspicious activity
+
+### Development vs Production
+
+**Development (Default)**:
+- Self-signed SSL certificates
+- Wildcard CORS (`*`) allowed
+- SSL verification can be disabled
+- Detailed error messages
+
+**Production Recommendations**:
+- Valid SSL certificates from trusted CA
+- Specific CORS origins only
+- SSL verification always enabled
+- Error message sanitization
+- Network-level access controls
+
+See [SECURITY.md](SECURITY.md) for detailed security information.
 
 ## License
 
@@ -242,7 +323,16 @@ MIT License
 
 ## Contributing
 
-Pull requests welcome! For major changes, please open an issue first.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+### Quick Start for Contributors
+
+1. Fork the repository
+2. Create a feature branch
+3. Install dependencies: `npm install && pip install -r requirements.txt`
+4. Make your changes
+5. Run tests: `npm test && pytest`
+6. Submit a pull request
 
 ## Credits
 
