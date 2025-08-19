@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.log
+server.key
+server.cert
+package-lock.json

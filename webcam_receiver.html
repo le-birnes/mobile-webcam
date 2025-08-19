@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Receiver - PC Display</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            text-align: center;
+        }
+        #remoteVideo {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #444;
+        }
+        .status {
+            color: white;
+            margin: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 5px;
+        }
+        .connected {
+            background: rgba(0, 200, 0, 0.3);
+        }
+        .disconnected {
+            background: rgba(200, 0, 0, 0.3);
+        }
+        .waiting {
+            background: rgba(200, 200, 0, 0.3);
+        }
+        .stats {
+            color: #ccc;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status" class="status waiting">Waiting for phone camera...</div>
+        <img id="remoteVideo" style="display:none">
+        <div id="stats" class="stats"></div>
+    </div>
+
+    <script>
+        const status = document.getElementById('status');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const stats = document.getElementById('stats');
+        
+        let ws = null;
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+        let fps = 0;
+        
+        // Get WebSocket URL
+        function getWebSocketUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host || '192.168.0.225:8443';
+            return `${protocol}//${host}`;
+        }
+        
+        // Connect to WebSocket
+        function connect() {
+            const wsUrl = getWebSocketUrl();
+            console.log('Connecting to:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'blob';
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                status.className = 'status connected';
+                status.textContent = 'Connected - Waiting for video stream...';
+            };
+            
+            ws.onmessage = async (event) => {
+                if (event.data instanceof Blob) {
+                    // Convert blob to URL and display
+                    const url = URL.createObjectURL(event.data);
+                    
+                    // Revoke previous URL to prevent memory leak
+                    if (remoteVideo.src && remoteVideo.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(remoteVideo.src);
+                    }
+                    
+                    remoteVideo.src = url;
+                    remoteVideo.style.display = 'block';
+                    
+                    // Update frame counter
+                    frameCount++;
+                    const now = Date.now();
+                    const elapsed = now - lastFrameTime;
+                    
+                    if (elapsed >= 1000) {
+                        fps = Math.round((frameCount * 1000) / elapsed);
+                        frameCount = 0;
+                        lastFrameTime = now;
+                        
+                        status.className = 'status connected';
+                        status.textContent = `Receiving video stream (${fps} FPS)`;
+                        stats.textContent = `Frame size: ${(event.data.size / 1024).toFixed(1)} KB`;
+                    }
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                status.className = 'status disconnected';
+                status.textContent = 'Disconnected - Attempting to reconnect...';
+                remoteVideo.style.display = 'none';
+                
+                // Reconnect after 2 seconds
+                setTimeout(connect, 2000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                status.className = 'status disconnected';
+                status.textContent = 'Connection error';
+            };
+        }
+        
+        // Start connection
+        connect();
+        
+        // Update FPS display
+        setInterval(() => {
+            if (frameCount > 0) {
+                const now = Date.now();
+                const elapsed = now - lastFrameTime;
+                if (elapsed > 0) {
+                    const currentFps = Math.round((frameCount * 1000) / elapsed);
+                    if (currentFps > 0 && currentFps !== fps) {
+                        fps = currentFps;
+                        status.textContent = `Receiving video stream (${fps} FPS)`;
+                    }
+                }
+            }
+        }, 100);
+    </script>
+</body>
+</html>

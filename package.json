@@ -1,0 +1,23 @@
+{
+  "name": "mobile-webcam",
+  "version": "1.0.0",
+  "description": "Phone to OBS Virtual Camera Bridge",
+  "main": "webcam_server_https.js",
+  "scripts": {
+    "start": "node webcam_server_https.js",
+    "bridge": "python phone_obs_rotation.py"
+  },
+  "keywords": [
+    "webcam",
+    "mobile",
+    "obs",
+    "virtual-camera",
+    "streaming"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

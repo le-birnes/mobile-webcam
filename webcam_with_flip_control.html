@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Camera with Flip Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            display: block;
+            margin: 20px auto;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .start-btn {
+            background: #28a745;
+            color: white;
+        }
+        .stop-btn {
+            background: #dc3545;
+            color: white;
+        }
+        .flip-btn {
+            background: #007bff;
+            color: white;
+        }
+        .camera-select {
+            margin: 10px 0;
+            text-align: center;
+        }
+        select {
+            padding: 8px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .flip-status {
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Phone Camera Bridge with Flip Control</h1>
+        
+        <div id="status" class="status pending">Initializing...</div>
+        
+        <div class="camera-select">
+            <label for="cameraSelect">Select Camera: </label>
+            <select id="cameraSelect">
+                <option value="">Loading cameras...</option>
+            </select>
+        </div>
+        
+        <video id="localVideo" autoplay playsinline muted></video>
+        
+        <div class="flip-status">
+            Flip: <span id="flipStatus">OFF</span>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="start-btn">Start Camera</button>
+            <button id="stopBtn" class="stop-btn" style="display:none">Stop Camera</button>
+            <button id="flipBtn" class="flip-btn">Toggle Flip</button>
+        </div>
+        
+        <div id="errorMsg" style="display:none" class="error"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('localVideo');
+        const statusDiv = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const flipBtn = document.getElementById('flipBtn');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const flipStatus = document.getElementById('flipStatus');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        let stream = null;
+        let ws = null;
+        let isFlipped = false;
+        let selectedDeviceId = null;
+        
+        // Get WebSocket URL based on protocol
+        function getWebSocketUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            return `${protocol}//${host}`;
+        }
+        
+        // List available cameras
+        async function listCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+                
+                // Select back camera by default on mobile
+                const backCamera = videoDevices.find(device => 
+                    device.label.toLowerCase().includes('back') ||
+                    device.label.toLowerCase().includes('rear')
+                );
+                
+                if (backCamera) {
+                    cameraSelect.value = backCamera.deviceId;
+                    selectedDeviceId = backCamera.deviceId;
+                } else if (videoDevices.length > 0) {
+                    selectedDeviceId = videoDevices[0].deviceId;
+                }
+            } catch (error) {
+                console.error('Error listing cameras:', error);
+                showError('Failed to list cameras: ' + error.message);
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Update flip transform
+        function updateFlip() {
+            if (isFlipped) {
+                video.style.transform = 'scaleX(-1)';
+                flipStatus.textContent = 'ON (Mirrored)';
+                flipStatus.style.color = '#28a745';
+            } else {
+                video.style.transform = 'scaleX(1)';
+                flipStatus.textContent = 'OFF';
+                flipStatus.style.color = '#666';
+            }
+        }
+        
+        // Connect to WebSocket
+        function connectWebSocket() {
+            const wsUrl = getWebSocketUrl();
+            console.log('Connecting to WebSocket:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Connected to server';
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Disconnected from server';
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Connection error';
+            };
+        }
+        
+        // Start camera
+        async function startCamera() {
+            try {
+                const constraints = {
+                    video: {
+                        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: selectedDeviceId ? undefined : 'environment'
+                    },
+                    audio: false
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Camera active';
+                
+                // Start sending frames if WebSocket is connected
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    sendFrames();
+                }
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showError('Failed to access camera: ' + error.message);
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Camera access denied';
+            }
+        }
+        
+        // Stop camera
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            
+            statusDiv.className = 'status disconnected';
+            statusDiv.textContent = 'Camera stopped';
+        }
+        
+        // Send video frames through WebSocket
+        function sendFrames() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            function captureAndSend() {
+                if (!stream || !ws || ws.readyState !== WebSocket.OPEN) {
+                    return;
+                }
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Apply flip if enabled
+                if (isFlipped) {
+                    ctx.save();
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                    ctx.restore();
+                } else {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                }
+                
+                canvas.toBlob((blob) => {
+                    if (blob && ws.readyState === WebSocket.OPEN) {
+                        ws.send(blob);
+                    }
+                    requestAnimationFrame(captureAndSend);
+                }, 'image/jpeg', 0.8);
+            }
+            
+            captureAndSend();
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        
+        flipBtn.addEventListener('click', () => {
+            isFlipped = !isFlipped;
+            updateFlip();
+        });
+        
+        cameraSelect.addEventListener('change', (e) => {
+            selectedDeviceId = e.target.value;
+            if (stream) {
+                stopCamera();
+                startCamera();
+            }
+        });
+        
+        // Initialize
+        async function init() {
+            // Request camera permission first to get camera labels
+            try {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                tempStream.getTracks().forEach(track => track.stop());
+            } catch (error) {
+                console.log('Initial camera permission request failed:', error);
+            }
+            
+            await listCameras();
+            connectWebSocket();
+            updateFlip();
+            
+            // Auto-start if requested
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('autostart') === 'true') {
+                setTimeout(startCamera, 1000);
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
