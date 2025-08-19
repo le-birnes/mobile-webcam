@@ -1,0 +1,120 @@
+name: Auto Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          VERSION="v${{ github.event.inputs.version }}"
+        else
+          VERSION=${GITHUB_REF#refs/tags/}
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Create Release Archives
+      run: |
+        # Create release directory
+        mkdir -p release/mobile-webcam
+        
+        # Copy all necessary files
+        cp *.py *.js *.html *.bat *.sh *.json *.txt README.md LICENSE .gitignore release/mobile-webcam/
+        
+        # Create archives
+        cd release
+        
+        # Windows ZIP
+        zip -r ../mobile-webcam-${{ steps.version.outputs.version }}-windows.zip mobile-webcam/
+        
+        # Unix/Mac tar.gz
+        tar -czf ../mobile-webcam-${{ steps.version.outputs.version }}-unix.tar.gz mobile-webcam/
+        
+        cd ..
+    
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        cat << EOF > release_notes.md
+        # Mobile Webcam ${{ steps.version.outputs.version }}
+        
+        ## 📱 Turn your phone into a wireless webcam for OBS!
+        
+        ### Features
+        - 🔄 Automatic rotation handling (portrait/landscape)
+        - 🪞 Horizontal flip option for readable text
+        - 🔒 HTTPS support for camera permissions
+        - 📹 Direct integration with OBS Virtual Camera
+        - ⚡ Low latency streaming (~25-30 FPS)
+        - 🔋 Keep-Alive mode to prevent screen lock
+        - 🎯 No app installation required on phone
+        
+        ### Installation
+        
+        #### Windows
+        1. Download \`mobile-webcam-${{ steps.version.outputs.version }}-windows.zip\`
+        2. Extract and run \`install_windows.bat\`
+        3. Start with \`start_mobile_webcam.bat\`
+        
+        #### macOS/Linux
+        1. Download \`mobile-webcam-${{ steps.version.outputs.version }}-unix.tar.gz\`
+        2. Extract and run \`./install_mac.sh\`
+        3. Start with \`./start_mobile_webcam.sh\`
+        
+        ### Quick Start
+        1. Run the start script on your PC
+        2. Open the displayed URL on your phone
+        3. Tap "Start Camera"
+        4. Select "OBS Virtual Camera" in your application
+        
+        ### What's New
+        - Keep-Alive mode at \`/keep-alive\` prevents screen timeout
+        - Wake Lock API support
+        - Screen dimming with tap-to-restore
+        - FPS counter for performance monitoring
+        
+        ---
+        *Created with Claude Code Assistant* 🤖
+        EOF
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Mobile Webcam ${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        files: |
+          mobile-webcam-${{ steps.version.outputs.version }}-windows.zip
+          mobile-webcam-${{ steps.version.outputs.version }}-unix.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
