@@ -40,6 +40,14 @@ app.get('/webcam_receiver.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'webcam_receiver.html'));
 });
 
+app.get('/webcam_keep_alive.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'webcam_keep_alive.html'));
+});
+
+app.get('/keep-alive', (req, res) => {
+    res.redirect('/webcam_keep_alive.html');
+});
+
 // SSL options for HTTPS
 const serverOptions = {
     key: fs.readFileSync('server.key'),

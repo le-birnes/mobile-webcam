@@ -127,17 +127,30 @@ https://YOUR_PC_IP:8443/
 - Optional viewer for debugging
 - Shows phone stream in browser
 
+#### 5. Keep-Alive Mode (`webcam_keep_alive.html`)
+- Prevents phone screen from locking
+- Wake Lock API support
+- Screen dimming with tap-to-restore
+- Silent audio loop for background activity
+- Maintains streaming even with dimmed screen
+
 ## File Structure
 
 ```
 mobile-webcam/
 ├── webcam_server_https.js       # HTTPS/WebSocket server
 ├── phone_obs_rotation.py        # Main bridge script
-├── webcam_with_flip_control.html # Phone interface
+├── webcam_with_flip_control.html # Phone interface (standard)
+├── webcam_keep_alive.html       # Phone interface (keep-alive mode)
 ├── webcam_receiver.html         # PC viewer (optional)
 ├── server.key                   # SSL private key
 ├── server.cert                  # SSL certificate
 ├── package.json                 # Node.js dependencies
+├── requirements.txt             # Python dependencies
+├── install_windows.bat          # Windows installer
+├── install_mac.sh               # macOS installer
+├── start_mobile_webcam.bat      # Windows launcher
+├── start_mobile_webcam.sh       # macOS launcher
 └── README.md                    # This file
 ```
 
@@ -157,6 +170,24 @@ mobile-webcam/
 - Direct WebSocket streaming
 - ~25-30 FPS performance
 - Optimized frame processing
+
+### Keep-Alive Mode (Prevent Screen Lock)
+Access the keep-alive interface at:
+```
+https://YOUR_PC_IP:8443/keep-alive
+```
+
+Features:
+- **Wake Lock API**: Prevents screen timeout
+- **Screen Dimming**: Dims after 10s, tap to restore
+- **Audio Keep-Alive**: Silent audio loop keeps browser active
+- **Background Streaming**: Continues even when dimmed
+- **FPS Counter**: Monitor performance in real-time
+
+Note: Complete screen lock prevention has limitations:
+- Works best with screen always on + dimming
+- Some phones may still lock after extended periods
+- Consider using "Developer options" > "Stay awake" for extended use
 
 ## Troubleshooting
 
